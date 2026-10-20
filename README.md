@@ -6,9 +6,13 @@ Web-App fürs Handy (Android & iPhone): Du richtest die Kamera auf die Projektio
 - Funktioniert offline, sobald die App einmal geladen wurde. Das ist praktisch bei schlechtem WLAN.
 - Folien bleiben **nur auf deinem Handy** (im Browser-Speicher), bis du das PDF teilst.
 
+**👉 App öffnen: <https://doenerteller887.github.io/folienscanner/>**
+
 ---
 
-## 1. Online stellen (einmalig, ca. 10 Minuten)
+## 1. Eigene Kopie online stellen (optional, ca. 10 Minuten)
+
+Nur nötig, wenn du eine eigene Version betreiben willst. Zum Benutzen reicht der Link oben.
 
 Die Kamera funktioniert im Browser nur über eine sichere `https://`-Adresse. Am einfachsten und kostenlos geht das mit **GitHub Pages**:
 
