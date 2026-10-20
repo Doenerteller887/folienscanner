@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folienscanner – Synthetischer Test</title>
+  <style>
+    :root { --bg: #f4f5f8; --fg: #12151c; --muted: #5d6475; --ok: #1fa463; --bad: #d93a3a; --card: #fff; --border: #dfe2ea; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0d12; --fg: #eef0f5; --muted: #9aa2b4; --card: #151922; --border: #2a3040; } }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+    h1 { font-size: 1.3rem; margin: 0 0 4px; }
+    .muted { color: var(--muted); }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+    canvas.scene { width: min(640px, 100%); border-radius: 8px; background: #000; }
+    table { border-collapse: collapse; margin: 8px 0 16px; }
+    td, th { border-bottom: 1px solid var(--border); padding: 4px 10px; text-align: left; font-variant-numeric: tabular-nums; }
+    .pass { color: var(--ok); font-weight: 700; }
+    .fail { color: var(--bad); font-weight: 700; }
+    .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .pages figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
+    .pages img { width: 100%; display: block; border-radius: 4px; }
+    .pages figcaption { font-size: .85rem; padding-top: 4px; }
+    pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; max-height: 300px; font-size: 12px; }
+  </style>
+  <script src="../lib/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <h1>Synthetischer Test der Folien-Pipeline</h1>
+  <p class="muted" id="state">Lade OpenCV…</p>
+  <div class="row">
+    <canvas class="scene" id="scene" width="1280" height="720"></canvas>
+    <div id="summary"></div>
+  </div>
+  <h2>Aufgenommene Seiten</h2>
+  <div class="pages" id="pages"></div>
+  <h2>Verlauf</h2>
+  <pre id="log"></pre>
+  <script type="module" src="synthetic.js"></script>
+</body>
+</html>

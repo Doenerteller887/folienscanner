@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="description" content="Erkennt Folien am Projektor, nimmt jede neue Folie automatisch auf und sammelt sie in einem PDF.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Folienscanner</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="lib/jspdf.umd.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 10.5V7.5a4 4 0 0 1 7.7-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 2.8h8l4.5 4.5V20a1.2 1.2 0 0 1-1.2 1.2H6A1.2 1.2 0 0 1 4.8 20V4A1.2 1.2 0 0 1 6 2.8z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 2.8v4.5h4.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 10.5v6m0 0l-2.5-2.5M12 16.5l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5m0 0L8 7.5m4-4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11H6a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 18 11h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.8A.8.8 0 0 1 9.8 4h4.4a.8.8 0 0 1 .8.8V7m-9 0l1 12.2A1.8 1.8 0 0 0 8.8 21h6.4a1.8 1.8 0 0 0 1.8-1.8L18 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l5-3v9l-5-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <!-- Startseite -->
+  <section id="home" class="screen active" aria-label="Start">
+    <div class="home-inner">
+      <header class="home-head">
+        <img src="icons/icon-192.png" alt="" class="logo" width="44" height="44">
+        <div>
+          <h1>Folienscanner</h1>
+          <p class="muted">Neue Folien am Projektor werden automatisch aufgenommen und als PDF gesammelt.</p>
+        </div>
+        <button class="icon-btn home-settings" id="btnHomeSettings" aria-label="Einstellungen" title="Einstellungen"><svg class="ic"><use href="#i-gear"/></svg></button>
+      </header>
+
+      <form id="startForm" class="card start-card" autocomplete="off">
+        <label for="lectureName">Vorlesung</label>
+        <input id="lectureName" type="text" placeholder="z. B. Analysis II" enterkeyhint="go">
+        <button type="submit" class="btn primary big">Scan starten</button>
+        <label class="btn ghost" for="videoFile">
+          <svg class="ic"><use href="#i-video"/></svg> Aufgezeichnetes Video importieren
+          <input id="videoFile" type="file" accept="video/*" hidden>
+        </label>
+      </form>
+
+      <h2 class="section-title">Deine Vorlesungen</h2>
+      <ul id="lectureList" class="lecture-list"></ul>
+      <p id="emptyLectures" class="muted empty">Noch keine Vorlesungen gespeichert.</p>
+      <p class="muted small footnote">Alle Folien bleiben lokal auf diesem Gerät, bis du das PDF teilst.</p>
+    </div>
+  </section>
+
+  <!-- Scan-Ansicht -->
+  <section id="scan" class="screen" aria-label="Scannen">
+    <div class="viewport" id="viewport">
+      <video id="video" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <div class="flash" id="flash"></div>
+    </div>
+
+    <div class="topbar">
+      <button class="icon-btn glass" id="btnBack" aria-label="Zurück"><svg class="ic"><use href="#i-back"/></svg></button>
+      <div class="status glass" id="status" role="status" aria-live="polite">
+        <span class="dot"></span><span id="statusText">Starte Kamera…</span>
+      </div>
+      <button class="icon-btn glass" id="btnSettings" aria-label="Einstellungen"><svg class="ic"><use href="#i-gear"/></svg></button>
+    </div>
+    <p class="scan-hint glass" id="scanHint" hidden></p>
+    <button class="zoom-pill glass" id="btnZoom" aria-label="Zoom ändern">1×</button>
+    <div class="video-progress" id="videoProgress" hidden><div id="videoProgressBar"></div></div>
+
+    <div class="bottombar">
+      <button class="thumb-btn" id="btnGallery" aria-label="Aufgenommene Folien ansehen">
+        <img id="lastThumb" alt="">
+        <span class="count" id="slideCount">0</span>
+      </button>
+      <button class="icon-btn glass" id="btnPause" aria-label="Pause"><svg class="ic"><use href="#i-pause"/></svg></button>
+      <button class="shutter" id="btnShutter" aria-label="Folie jetzt aufnehmen"><span></span></button>
+      <button class="icon-btn glass" id="btnLock" aria-label="Rahmen fixieren"><svg class="ic"><use href="#i-unlock"/></svg></button>
+      <button class="icon-btn glass" id="btnPdf" aria-label="PDF teilen"><svg class="ic"><use href="#i-pdf"/></svg></button>
+    </div>
+  </section>
+
+  <!-- Galerie -->
+  <section id="gallery" class="screen" aria-label="Folien">
+    <header class="bar">
+      <button class="icon-btn" id="galBack" aria-label="Zurück"><svg class="ic"><use href="#i-back"/></svg></button>
+      <div class="bar-title">
+        <h2 id="galTitle"></h2>
+        <span class="muted small" id="galMeta"></span>
+      </div>
+      <button class="icon-btn" id="galRename" aria-label="Umbenennen"><svg class="ic"><use href="#i-edit"/></svg></button>
+    </header>
+    <div class="gal-actions">
+      <button class="btn primary" id="galShare"><svg class="ic"><use href="#i-share"/></svg> PDF teilen</button>
+      <button class="btn" id="galDownload"><svg class="ic"><use href="#i-pdf"/></svg> Herunterladen</button>
+      <button class="btn" id="galContinue">Weiter scannen</button>
+    </div>
+    <div id="galGrid" class="grid"></div>
+    <p id="galEmpty" class="muted empty">Noch keine Folien in dieser Vorlesung.</p>
+  </section>
+
+  <!-- Einzelansicht -->
+  <dialog id="viewer" class="viewer">
+    <img id="viewerImg" alt="">
+    <div class="viewer-bar">
+      <span id="viewerInfo"></span>
+      <span class="spacer"></span>
+      <button class="btn danger" id="viewerDelete"><svg class="ic"><use href="#i-trash"/></svg> Löschen</button>
+      <button class="btn" id="viewerClose">Schließen</button>
+    </div>
+  </dialog>
+
+  <!-- Einstellungen -->
+  <dialog id="settings" class="sheet">
+    <form method="dialog" id="settingsForm">
+      <h2>Einstellungen</h2>
+      <p class="muted small" id="settingsNote" hidden>Gilt für alle Scans. Belichtung und Rahmen lassen sich zusätzlich während des Scans einstellen.</p>
+
+      <fieldset>
+        <legend>Automatische Aufnahme</legend>
+        <label class="row switch"><span>Neue Folien automatisch aufnehmen</span><input type="checkbox" name="auto"></label>
+        <label class="row col">
+          <span>Empfindlichkeit <output name="sensitivityOut"></output></span>
+          <input type="range" name="sensitivity" min="1" max="10" step="1">
+          <small class="muted">Höher = reagiert schon auf kleine Änderungen (z. B. einzelne neue Zeilen).</small>
+        </label>
+        <label class="row col">
+          <span>Wartezeit, bis die Folie ruhig steht <output name="stableSecOut"></output></span>
+          <input type="range" name="stableSec" min="0.6" max="3" step="0.2">
+        </label>
+        <label class="row switch"><span>Aufbau-Animationen zusammenführen<small class="muted">Stichpunkte, die nacheinander erscheinen, landen auf einer Seite.</small></span><input type="checkbox" name="merge"></label>
+        <label class="row switch"><span>Doppelte Folien überspringen<small class="muted">Wenn zu einer schon aufgenommenen Folie zurückgeblättert wird.</small></span><input type="checkbox" name="skipDuplicates"></label>
+        <label class="row switch"><span>Vibrieren bei Aufnahme</span><input type="checkbox" name="vibrate"></label>
+        <label class="row switch"><span>Beim Scannen Querformat erzwingen<small class="muted">Vollbild im Querformat, auch wenn die Bildschirmdrehung gesperrt ist (Android).</small></span><input type="checkbox" name="forceLandscape"></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Bild</legend>
+        <label class="row"><span>Filter</span>
+          <select name="filter">
+            <option value="enhanced">Verbessert</option>
+            <option value="original">Original</option>
+            <option value="gray">Graustufen</option>
+          </select>
+        </label>
+        <label class="row"><span>Seitenverhältnis</span>
+          <select name="aspect">
+            <option value="auto">Automatisch</option>
+            <option value="16:9">16:9</option>
+            <option value="16:10">16:10</option>
+            <option value="4:3">4:3</option>
+          </select>
+        </label>
+        <label class="row col" id="exposureRow" hidden>
+          <span>Belichtung <output name="exposureOut"></output></span>
+          <input type="range" name="exposure">
+          <small class="muted">Nach links, wenn die Folie überstrahlt ist.</small>
+        </label>
+      </fieldset>
+
+      <fieldset id="frameFieldset">
+        <legend>Rahmen</legend>
+        <div class="row buttons">
+          <button type="button" class="btn" id="btnFullFrame">Ganzes Bild verwenden</button>
+          <button type="button" class="btn" id="btnAutoFrame">Automatisch erkennen</button>
+        </div>
+        <small class="muted">Folie antippen = genau diese Folie verfolgen. Ecken lassen sich mit dem Finger verschieben, mit zwei Fingern wird gezoomt.</small>
+      </fieldset>
+
+      <fieldset>
+        <legend>Video-Import</legend>
+        <label class="row"><span>Analyse alle</span>
+          <select name="videoStep">
+            <option value="0.25">0,25 s (genau)</option>
+            <option value="0.5">0,5 s</option>
+            <option value="1">1 s (schnell)</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <button class="btn primary big" value="ok">Fertig</button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div id="loading" class="loading" hidden>
+    <div class="spinner"></div>
+    <p id="loadingText">Bildverarbeitung wird geladen…</p>
+  </div>
+</body>
+</html>

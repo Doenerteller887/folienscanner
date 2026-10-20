@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Folienscanner – Fototest</title>
+  <style>
+    :root { --bg: #f4f5f8; --fg: #12151c; --muted: #5d6475; --ok: #1fa463; --bad: #d93a3a; --warn: #c27c00; --card: #fff; --border: #dfe2ea; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0d12; --fg: #eef0f5; --muted: #9aa2b4; --card: #151922; --border: #2a3040; } }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; }
+    h1 { font-size: 1.25rem; margin: 0 0 4px; }
+    .muted { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 12px; margin-top: 12px; }
+    figure { margin: 0; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+    .pair { display: grid; grid-template-columns: 3fr 2fr; gap: 6px; align-items: center; }
+    .pair canvas, .pair img { width: 100%; display: block; border-radius: 4px; background: #000; }
+    figcaption { padding-top: 6px; font-size: .85rem; }
+    .ok { color: var(--ok); font-weight: 700; } .bad { color: var(--bad); font-weight: 700; } .warn { color: var(--warn); font-weight: 700; }
+  </style>
+  <script src="../lib/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <h1>Fototest: echte Hörsaal-Fotos durch die Folien-Pipeline</h1>
+  <p class="muted" id="state">Lade OpenCV…</p>
+  <div class="grid" id="grid"></div>
+  <script type="module" src="photos.js"></script>
+</body>
+</html>
