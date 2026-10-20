@@ -17,6 +17,9 @@ const els = {
   btnPause: $('btnPause'), btnShutter: $('btnShutter'), btnLock: $('btnLock'), btnPdf: $('btnPdf'),
   btnBack: $('btnBack'), btnSettings: $('btnSettings'), btnZoom: $('btnZoom'), scanHint: $('scanHint'),
   lectureList: $('lectureList'), emptyLectures: $('emptyLectures'), lectureName: $('lectureName'),
+  resumeCard: $('resumeCard'), resumeName: $('resumeName'), resumeMeta: $('resumeMeta'),
+  cropper: $('cropper'), cropCanvas: $('cropCanvas'), cropPreview: $('cropPreview'), cropInfo: $('cropInfo'),
+  viewerCrop: $('viewerCrop'),
   galTitle: $('galTitle'), galMeta: $('galMeta'), galGrid: $('galGrid'), galEmpty: $('galEmpty'),
   viewer: $('viewer'), viewerImg: $('viewerImg'), viewerInfo: $('viewerInfo'),
   settings: $('settings'), settingsForm: $('settingsForm'), exposureRow: $('exposureRow'),
@@ -25,14 +28,18 @@ const els = {
 
 // ---------- Einstellungen (pro Gerät, im Browser gespeichert) ----------
 const SETTINGS_KEY = 'folienscanner.settings.v1';
+const SETTINGS_REV = 2; // 2: Automatik standardmäßig aus
 const DEFAULT_SETTINGS = {
-  auto: true, sensitivity: 6, stableSec: 1.2, merge: true, skipDuplicates: true, vibrate: true,
-  filter: 'enhanced', aspect: 'auto', videoStep: 0.5, forceLandscape: true, zoom: 1,
+  auto: false, sensitivity: 6, stableSec: 1.2, merge: true, skipDuplicates: true, vibrate: true,
+  filter: 'enhanced', aspect: 'auto', videoStep: 0.5, forceLandscape: true, zoom: 1, rev: SETTINGS_REV,
 };
 
 function loadSettings() {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; }
-  catch { return { ...DEFAULT_SETTINGS }; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if (saved.rev !== SETTINGS_REV) { delete saved.auto; saved.rev = SETTINGS_REV; } // alter Standard „an“
+    return { ...DEFAULT_SETTINGS, ...saved };
+  } catch { return { ...DEFAULT_SETTINGS }; }
 }
 function saveSettings() {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch { /* privat/blockiert */ }
@@ -110,11 +117,36 @@ function scaleCanvas(src, width) {
 }
 
 let toastTimer = null;
-function toast(msg, ms = 1900) {
+// action: { label, onClick } → Knopf in der Meldung (z. B. „Bearbeiten“)
+function toast(msg, ms = 1900, action = null) {
   els.toast.textContent = msg;
+  els.toast.classList.toggle('has-action', !!action);
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = action.label;
+    b.addEventListener('click', () => { els.toast.classList.remove('show'); action.onClick(); });
+    els.toast.append(b);
+  }
   els.toast.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => els.toast.classList.remove('show'), ms);
+}
+
+// ---------- Laufende Sitzung merken (übersteht Schließen des Tabs / der App) ----------
+const ACTIVE_KEY = 'folienscanner.active';
+const RESUME_MAX_MS = 12 * 3600 * 1000;
+function setActiveLecture(id) {
+  try {
+    if (id == null) localStorage.removeItem(ACTIVE_KEY);
+    else localStorage.setItem(ACTIVE_KEY, JSON.stringify({ id, t: Date.now() }));
+  } catch { /* privat/blockiert */ }
+}
+function getActiveLecture() {
+  try {
+    const a = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
+    return a && Date.now() - a.t < RESUME_MAX_MS ? a : null;
+  } catch { return null; }
 }
 
 function setLoading(text) {
@@ -156,7 +188,24 @@ async function ensurePipeline() {
 // ---------- Startseite ----------
 async function renderHome() {
   revokeUrls();
-  const lectures = await store.listLectures();
+  let lectures = await store.listLectures();
+  // Wurde ein Scan unterbrochen (Tab/App geschlossen, Akku leer …)? Dann Weitermachen anbieten.
+  const active = state.scanning ? null : getActiveLecture();
+  const resume = active && lectures.find((l) => l.id === active.id);
+  if (active && !resume?.slideCount) {
+    setActiveLecture(null);
+    if (resume) { // leer unterbrochen → wie beim normalen Beenden nicht aufheben
+      await store.deleteLecture(resume.id);
+      lectures = lectures.filter((l) => l !== resume);
+    }
+  }
+  const showResume = !!resume?.slideCount;
+  els.resumeCard.hidden = !showResume;
+  if (showResume) {
+    state.resumeLecture = resume;
+    els.resumeName.textContent = resume.name;
+    els.resumeMeta.textContent = `${plural(resume.slideCount)} · zuletzt ${new Date(resume.updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr`;
+  }
   els.emptyLectures.hidden = lectures.length > 0;
   const items = await Promise.all(lectures.map(async (l) => {
     const li = document.createElement('li');
@@ -251,6 +300,7 @@ async function startScan(lecture, mode = 'camera', file = null) {
   await setupZoom();
   state.searchSince = performance.now();
   state.scanning = true;
+  setActiveLecture(lecture.id);
   emitLectureStart(lecture);
   store.requestPersistence();
   if (mode === 'camera') cameraLoop();
@@ -259,6 +309,7 @@ async function startScan(lecture, mode = 'camera', file = null) {
 
 async function stopScan() {
   state.scanning = false;
+  setActiveLecture(null); // regulär beendet → kein „Weitermachen“-Hinweis
   clearTimeout(state.loopTimer);
   try { await state.stepPromise; } catch { /* schon protokolliert */ }
   stopCamera(els.video);
@@ -301,7 +352,7 @@ function cameraLoop() {
 
 async function cameraStep() {
   const v = els.video;
-  if (document.hidden || v.readyState < 2 || !v.videoWidth || state.drag) return;
+  if (document.hidden || v.readyState < 2 || !v.videoWidth || state.drag || els.cropper.open) return;
   const res = await state.pipeline.analyze(v, v.videoWidth, v.videoHeight, performance.now(), {
     auto: state.settings.auto && !state.paused,
   });
@@ -379,42 +430,70 @@ function updateHint() {
   els.scanHint.hidden = !hint;
 }
 
-async function saveCapture({ image, type }) {
-  const lecture = state.lecture;
+// Originalfoto (Canvas oder ImageBitmap) als JPEG – damit lässt sich der Ausschnitt später korrigieren.
+async function frameToBlob(frame) {
+  let c = frame;
+  if (!(frame instanceof HTMLCanvasElement)) {
+    c = document.createElement('canvas');
+    c.width = frame.width;
+    c.height = frame.height;
+    c.getContext('2d').drawImage(frame, 0, 0);
+    frame.close?.();
+  }
+  return canvasToBlob(c, 'image/jpeg', 0.88);
+}
+
+async function slideData(image) {
   const blob = await canvasToBlob(image.canvas, 'image/jpeg', 0.85);
   const thumb = await canvasToBlob(scaleCanvas(image.canvas, 360), 'image/jpeg', 0.7);
-  const data = { blob, thumb, width: image.width, height: image.height };
+  return { blob, thumb, width: image.width, height: image.height };
+}
+
+async function saveCapture({ image, type, frame, quad, zoom }) {
+  const lecture = state.lecture;
+  const data = await slideData(image);
+  if (frame) Object.assign(data, { source: await frameToBlob(frame), quad, zoom: zoom || 1 });
   let slide = null;
   if (type === 'replace' && state.lastSlideId != null) slide = await store.replaceSlide(state.lastSlideId, data);
   const replaced = !!slide;
   if (!slide) slide = await store.addSlide(lecture.id, data);
   state.lastSlideId = slide.id;
   state.lecture = (await store.getLecture(lecture.id)) || lecture;
+  setActiveLecture(lecture.id);
+  const edit = { label: 'Bearbeiten', onClick: () => openCropper(slide) };
   if (replaced) {
     await emitSlideReplaced(slide, state.lecture);
-    toast(`↻ Folie ${state.lastSlideNo} ergänzt`);
+    toast(`↻ Folie ${state.lastSlideNo} ergänzt`, 3000, slide.source && edit);
   } else {
     state.lastSlideNo = state.lecture.slideCount;
     await emitSlideAdded(slide, state.lecture);
-    toast(`✓ Folie ${state.lastSlideNo} gespeichert`);
+    toast(`✓ Folie ${state.lastSlideNo} gespeichert`, 3000, slide.source && edit);
   }
-  setScanThumb(thumb, state.lecture.slideCount);
+  setScanThumb(data.thumb, state.lecture.slideCount);
   els.flash.classList.remove('on');
   void els.flash.offsetWidth;
   els.flash.classList.add('on');
   if (state.settings.vibrate) navigator.vibrate?.(replaced ? 30 : 60);
+  return slide;
 }
 
+// Auslöser: Foto festhalten, erst danach darin die Folie suchen und ausschneiden.
+let capturing = false;
 async function manualCapture() {
   const v = els.video;
-  if (!state.scanning || !v.videoWidth) return;
+  if (!state.scanning || !v.videoWidth || capturing) return;
+  capturing = true;
   try {
-    const image = state.pipeline.captureNow(v, v.videoWidth, v.videoHeight);
-    await saveCapture({ image, type: 'add' });
-    if (image.fullFrame) toast('Keine Folie erkannt – ganzes Bild gespeichert', 2600);
+    const shot = state.pipeline.captureStill(v, v.videoWidth, v.videoHeight);
+    const slide = await saveCapture({ ...shot, type: 'add' });
+    if (shot.how === 'full') {
+      toast('Keine Folie erkannt – ganzes Bild gespeichert', 4000, { label: 'Zuschneiden', onClick: () => openCropper(slide) });
+    }
   } catch (e) {
     console.error(e);
     toast('Aufnahme fehlgeschlagen');
+  } finally {
+    capturing = false;
   }
 }
 
@@ -856,11 +935,250 @@ async function renderGallery() {
 let viewerUrl = null;
 function openViewer(slide, no) {
   state.viewerSlide = slide;
+  state.viewerNo = no;
   if (viewerUrl) URL.revokeObjectURL(viewerUrl);
   viewerUrl = URL.createObjectURL(slide.blob);
   els.viewerImg.src = viewerUrl;
   els.viewerInfo.textContent = `Folie ${no}`;
-  els.viewer.showModal();
+  els.viewerCrop.disabled = !slide.source;
+  els.viewerCrop.title = slide.source ? 'Ausschnitt korrigieren' : 'Für Folien aus älteren Versionen nicht möglich';
+  if (!els.viewer.open) els.viewer.showModal();
+}
+
+// ---------- Ausschnitt bearbeiten ----------
+// Zeigt das gespeicherte Originalfoto; die vier Ecken lassen sich verschieben.
+// Die obere Kante (dicker, „oben“) bestimmt, wie herum die Folie im PDF steht.
+const crop = { slide: null, img: null, w: 0, h: 0, quad: null, drag: null, view: null, previewUrl: null, previewTimer: null };
+
+async function openCropper(slide) {
+  slide = (await store.getSlide(slide.id)) || slide;
+  if (!slide.source) { toast('Für diese Folie ist kein Originalfoto gespeichert'); return; }
+  try {
+    await ensurePipeline();
+    const img = await createImageBitmap(slide.source);
+    crop.img?.close?.();
+    Object.assign(crop, {
+      slide, img, w: img.width, h: img.height, drag: null,
+      quad: (slide.quad || FULL_FRAME).map((p) => ({ x: p.x, y: p.y })),
+    });
+  } catch (e) {
+    console.error(e);
+    toast('Originalfoto konnte nicht geladen werden');
+    return;
+  }
+  els.cropInfo.textContent = 'Ecken auf die Folie ziehen';
+  els.cropper.showModal();
+  requestAnimationFrame(() => { drawCrop(); updateCropPreview(); });
+}
+
+function cropView() {
+  const c = els.cropCanvas, cw = c.clientWidth, ch = c.clientHeight, pad = 22;
+  const s = Math.min((cw - 2 * pad) / crop.w, (ch - 2 * pad) / crop.h);
+  const w = crop.w * s, h = crop.h * s;
+  return { x: (cw - w) / 2, y: (ch - h) / 2, w, h, s };
+}
+
+function drawCrop() {
+  if (!els.cropper.open || !crop.img) return;
+  const c = els.cropCanvas, dpr = window.devicePixelRatio || 1;
+  const W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr);
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, c.clientWidth, c.clientHeight);
+  const v = crop.view = cropView();
+  ctx.drawImage(crop.img, v.x, v.y, v.w, v.h);
+  const pts = crop.quad.map((p) => ({ x: v.x + p.x * v.w, y: v.y + p.y * v.h }));
+  // Außerhalb abdunkeln
+  ctx.beginPath();
+  ctx.rect(v.x, v.y, v.w, v.h);
+  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  ctx.fill('evenodd');
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#4d84ff';
+  ctx.stroke();
+  // Obere Kante markieren
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  ctx.lineTo(pts[1].x, pts[1].y);
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+  ctx.font = '600 12px system-ui, sans-serif';
+  const label = 'oben';
+  const tw = ctx.measureText(label).width + 12;
+  ctx.fillStyle = '#4d84ff';
+  ctx.beginPath();
+  ctx.roundRect?.(mx - tw / 2, my - 10, tw, 20, 10);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, mx, my);
+  pts.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, crop.drag?.i === i ? 16 : 12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#4d84ff';
+    ctx.stroke();
+  });
+  if (crop.drag) drawLoupe(ctx, v, pts[crop.drag.i]);
+}
+
+// Lupe beim Ziehen: Ausschnitt um die Ecke vergrößert (der Finger verdeckt sie sonst).
+function drawLoupe(ctx, v, p) {
+  const r = 52, zoom = 3;
+  const cw = els.cropCanvas.clientWidth;
+  const cx = p.x < cw / 2 ? cw - r - 12 : r + 12, cy = r + 12;
+  const sx = (p.x - v.x) / v.s, sy = (p.y - v.y) / v.s; // Ecke in Fotopixeln
+  const half = r / (v.s * zoom);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+  ctx.drawImage(crop.img, sx - half, sy - half, 2 * half, 2 * half, cx - r, cy - r, 2 * r, 2 * r);
+  ctx.strokeStyle = '#4d84ff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy);
+  ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10);
+  ctx.stroke();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#fff';
+  ctx.stroke();
+}
+
+function updateCropPreview(delay = 0) {
+  clearTimeout(crop.previewTimer);
+  crop.previewTimer = setTimeout(async () => {
+    if (!els.cropper.open || !crop.img) return;
+    try {
+      const out = state.pipeline.renderFromFrame(crop.img, crop.w, crop.h, crop.quad, { zoom: crop.slide.zoom || 1, outWidth: 480 });
+      const blob = await canvasToBlob(out.canvas, 'image/jpeg', 0.8);
+      if (crop.previewUrl) URL.revokeObjectURL(crop.previewUrl);
+      crop.previewUrl = URL.createObjectURL(blob);
+      els.cropPreview.src = crop.previewUrl;
+    } catch (e) { console.error(e); }
+  }, delay);
+}
+
+function setupCropGestures() {
+  const c = els.cropCanvas;
+  const local = (e) => {
+    const b = c.getBoundingClientRect();
+    return { x: e.clientX - b.left, y: e.clientY - b.top };
+  };
+  c.addEventListener('pointerdown', (e) => {
+    if (!crop.view || crop.drag) return;
+    const pt = local(e), v = crop.view;
+    let best = -1, bestD = 48;
+    crop.quad.forEach((q, i) => {
+      const d = Math.hypot(v.x + q.x * v.w - pt.x, v.y + q.y * v.h - pt.y);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best < 0) return;
+    e.preventDefault();
+    try { c.setPointerCapture(e.pointerId); } catch { /* egal */ }
+    const q = crop.quad[best];
+    // Versatz merken: Die Ecke springt nicht unter den Finger, sondern bleibt sichtbar daneben.
+    crop.drag = { i: best, id: e.pointerId, dx: v.x + q.x * v.w - pt.x, dy: v.y + q.y * v.h - pt.y };
+    drawCrop();
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (!crop.drag || e.pointerId !== crop.drag.id) return;
+    const pt = local(e), v = crop.view;
+    crop.quad[crop.drag.i] = {
+      x: Math.min(1, Math.max(0, (pt.x + crop.drag.dx - v.x) / v.w)),
+      y: Math.min(1, Math.max(0, (pt.y + crop.drag.dy - v.y) / v.h)),
+    };
+    drawCrop();
+  });
+  const end = (e) => {
+    if (!crop.drag || e.pointerId !== crop.drag.id) return;
+    crop.drag = null;
+    drawCrop();
+    updateCropPreview(50);
+  };
+  c.addEventListener('pointerup', end);
+  c.addEventListener('pointercancel', end);
+}
+
+// Neu erkannte Ecken so durchnummerieren, dass „oben“ möglichst bleibt, wo es war.
+function keepOrientation(next, prev) {
+  let best = next, bestD = Infinity;
+  for (let k = 0; k < 4; k++) {
+    const r = next.map((_, i) => next[(i + k) % 4]);
+    const d = r.reduce((s, p, i) => s + Math.hypot(p.x - prev[i].x, p.y - prev[i].y), 0);
+    if (d < bestD) { bestD = d; best = r; }
+  }
+  return best;
+}
+
+function cropAuto() {
+  const q = state.pipeline.detectInImage(crop.img, crop.w, crop.h, crop.slide.zoom || 1);
+  if (!q) { toast('Keine Folie gefunden – bitte Ecken von Hand setzen', 2600); return; }
+  crop.quad = keepOrientation(q, crop.quad);
+  drawCrop();
+  updateCropPreview();
+}
+
+function cropRotate() {
+  const q = crop.quad;
+  crop.quad = [q[3], q[0], q[1], q[2]]; // 90° im Uhrzeigersinn
+  drawCrop();
+  updateCropPreview();
+}
+
+function cropFull() {
+  crop.quad = FULL_FRAME.map((p) => ({ ...p }));
+  drawCrop();
+  updateCropPreview();
+}
+
+async function cropApply() {
+  const { slide } = crop;
+  try {
+    setLoading('Folie wird neu zugeschnitten…');
+    const image = state.pipeline.renderFromFrame(crop.img, crop.w, crop.h, crop.quad, { zoom: slide.zoom || 1 });
+    const data = await slideData(image);
+    const updated = await store.replaceSlide(slide.id, { ...data, quad: crop.quad });
+    const lecture = await store.getLecture(slide.lectureId);
+    if (updated && lecture) await emitSlideReplaced(updated, lecture);
+    els.cropper.close();
+    toast('Ausschnitt übernommen');
+    if (state.screen === 'scan') {
+      if (state.lecture?.id === slide.lectureId) await refreshScanThumb();
+    } else if (state.screen === 'gallery') {
+      await renderGallery();
+    }
+    if (els.viewer.open && updated && state.viewerSlide?.id === slide.id) openViewer(updated, state.viewerNo);
+  } catch (e) {
+    console.error(e);
+    toast('Zuschneiden fehlgeschlagen');
+  } finally {
+    setLoading(null);
+  }
+}
+
+function closeCropper() {
+  clearTimeout(crop.previewTimer);
+  crop.img?.close?.();
+  crop.img = null;
+  if (crop.previewUrl) URL.revokeObjectURL(crop.previewUrl);
+  crop.previewUrl = null;
+  els.cropPreview.removeAttribute('src');
 }
 
 async function deleteViewerSlide() {
@@ -994,6 +1312,25 @@ function bind() {
 
   $('viewerClose').addEventListener('click', () => els.viewer.close());
   $('viewerDelete').addEventListener('click', deleteViewerSlide);
+  els.viewerCrop.addEventListener('click', () => state.viewerSlide && openCropper(state.viewerSlide));
+
+  setupCropGestures();
+  $('cropRotate').addEventListener('click', cropRotate);
+  $('cropAuto').addEventListener('click', cropAuto);
+  $('cropFull').addEventListener('click', cropFull);
+  $('cropCancel').addEventListener('click', () => els.cropper.close());
+  $('cropApply').addEventListener('click', cropApply);
+  els.cropper.addEventListener('close', closeCropper);
+  window.addEventListener('resize', () => els.cropper.open && drawCrop());
+
+  $('resumeContinue').addEventListener('click', () => {
+    if (!state.resumeLecture) return;
+    enterLandscape();
+    requestMotionPermission();
+    startScan(state.resumeLecture, 'camera');
+  });
+  $('resumeOpen').addEventListener('click', () => state.resumeLecture && openGallery(state.resumeLecture.id));
+  $('resumeDismiss').addEventListener('click', () => { setActiveLecture(null); els.resumeCard.hidden = true; });
 
   els.settingsForm.addEventListener('input', readSettingsForm);
   els.settingsForm.addEventListener('change', readSettingsForm);
@@ -1013,6 +1350,7 @@ function bind() {
   });
 
   window.addEventListener('popstate', (e) => {
+    if (els.cropper.open) els.cropper.close();
     if (els.viewer.open) els.viewer.close();
     if (els.settings.open) els.settings.close();
     if (state.screen === 'scan') exitScan(e.state?.screen !== 'gallery');

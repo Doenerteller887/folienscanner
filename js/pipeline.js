@@ -123,9 +123,8 @@ export class Pipeline {
     this.best = null;
   }
 
-  // Ein Analyseschritt. source: Video, Canvas oder Bitmap in Originalgröße w×h.
-  async analyze(source, w, h, now, { auto = true } = {}) {
-    const cv = this.cv;
+  // Verkleinertes Analysebild der aktuellen Ansicht als OpenCV-Mat (Aufrufer gibt es frei).
+  _analysisMat(source, w, h) {
     const c = this.crop;
     const cw = c.w * w, ch = c.h * h;
     const aw = ANALYSIS_W, ah = Math.round((ch * aw) / cw);
@@ -135,17 +134,26 @@ export class Pipeline {
       this.aCtx.imageSmoothingQuality = 'high';
     }
     this.aCtx.drawImage(source, c.x * w, c.y * h, cw, ch, 0, 0, aw, ah);
-    const mat = cv.matFromImageData(this.aCtx.getImageData(0, 0, aw, ah));
+    return this.cv.matFromImageData(this.aCtx.getImageData(0, 0, aw, ah));
+  }
+
+  _detect(mat) {
+    return this.detector.detect(mat, {
+      prior: this.tracker.quad, rotation: this.rotation, focus: this.focus,
+      focal: DEFAULT_FOCAL * this.opticalZoom * this.digitalZoom,
+    });
+  }
+
+  // Ein Analyseschritt. source: Video, Canvas oder Bitmap in Originalgröße w×h.
+  async analyze(source, w, h, now, { auto = true } = {}) {
+    const mat = this._analysisMat(source, w, h);
     let quad = null, quadState = 'none';
     try {
       if (this.locked) {
         quad = this.locked;
         quadState = 'locked';
       } else {
-        const det = this.detector.detect(mat, {
-          prior: this.tracker.quad, rotation: this.rotation, focus: this.focus,
-          focal: DEFAULT_FOCAL * this.opticalZoom * this.digitalZoom,
-        });
+        const det = this._detect(mat);
         const tr = this.tracker.update(det ? det.quad : null, now, det ? det.score : 0);
         if (tr) {
           quad = tr.quad;
@@ -183,17 +191,20 @@ export class Pipeline {
     if (res.restart) this._dropBest();
     if (this.change.state === 'candidate' || res.event) {
       if (!this.best || sharp > this.best.sharp) {
-        const box = this._bbox(qSrc, w, h);
-        const bitmap = await createImageBitmap(source, box.x, box.y, box.w, box.h);
+        // Ganzes Bild behalten: Es wird mitgespeichert, damit sich der Ausschnitt später korrigieren lässt.
+        const bitmap = await createImageBitmap(source);
         this._dropBest();
-        this.best = { sharp, bitmap, box, qSrc, w, h };
+        this.best = { sharp, bitmap, qSrc, w, h };
       }
     }
     if (res.event) {
       const b = this.best;
-      res.event.image = this._renderRegion(b.bitmap, b.box, b.qSrc, b.w, b.h);
+      res.event.image = this._renderRegion(b.bitmap, b.qSrc, b.w, b.h);
+      res.event.frame = b.bitmap; // Aufrufer gibt es frei
+      res.event.quad = normQuad(b.qSrc, b.w, b.h);
+      res.event.zoom = this.opticalZoom;
       res.event.sig = sig;
-      this._dropBest();
+      this.best = null;
     }
     return { quad, quadState, ...res };
   }
@@ -231,18 +242,22 @@ export class Pipeline {
     }
   }
 
-  // Entzerrt den Folienausschnitt (region = Bild des Rechtecks `box` aus dem Quellbild).
-  _renderRegion(region, box, qSrc, w, h) {
+  // Entzerrt einen Folienausschnitt. source: ganzes Bild (w×h), qSrc: Ecken in dessen Pixeln.
+  // opts: zoom (Kamera-Zoom bei der Aufnahme), outWidth (für kleine Vorschauen).
+  _renderRegion(source, qSrc, w, h, { zoom = this.opticalZoom, outWidth } = {}) {
     const cv = this.cv;
     const st = this.settings;
+    const box = this._bbox(qSrc, w, h, 0.01);
     this.fCanvas.width = box.w;
     this.fCanvas.height = box.h;
-    this.fCtx.drawImage(region, 0, 0, box.w, box.h);
+    this.fCtx.drawImage(source, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
     const src = cv.matFromImageData(this.fCtx.getImageData(0, 0, box.w, box.h));
     const q = qSrc.map((p) => ({ x: p.x - box.x, y: p.y - box.y }));
     // Seitenverhältnis aus der Perspektive im ganzen Bild (Bildmitte = optische Achse)
-    const aspect = resolveAspect(st.aspect, estimateAspect(qSrc, w, h, DEFAULT_FOCAL * this.opticalZoom * Math.max(w, h)));
-    const outW = st.outWidth, outH = Math.round(outW / aspect);
+    const aspect = resolveAspect(st.aspect, estimateAspect(qSrc, w, h, DEFAULT_FOCAL * zoom * Math.max(w, h)));
+    const long = outWidth || st.outWidth; // lange Seite (auch bei hochkant gedrehten Folien)
+    const outW = aspect >= 1 ? long : Math.round(long * aspect);
+    const outH = aspect >= 1 ? Math.round(long / aspect) : long;
     const warped = warp(cv, src, q, outW, outH);
     const out = enhance(cv, warped, st.filter);
     const canvas = document.createElement('canvas');
@@ -253,20 +268,58 @@ export class Pipeline {
 
   // Entzerrt direkt aus einem Vollbild (Video/Canvas) mit einem Ansichts-Viereck.
   render(source, w, h, quad) {
-    const qSrc = this.toSrc(quad, w, h);
-    const box = this._bbox(qSrc, w, h, 0.01);
-    this.sCanvas.width = box.w;
-    this.sCanvas.height = box.h;
-    this.sCtx.drawImage(source, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
-    return this._renderRegion(this.sCanvas, box, qSrc, w, h);
+    return this._renderRegion(source, this.toSrc(quad, w, h), w, h);
   }
 
-  // Manuelle Aufnahme mit dem aktuellen Rahmen (oder der ganzen Ansicht).
-  captureNow(source, w, h) {
-    const quad = this.locked || this.lastQuad || FULL_FRAME;
-    const image = this.render(source, w, h, quad);
-    image.fullFrame = !this.locked && !this.lastQuad;
-    if (this.lastSig) this.change.setReference(this.lastSig);
-    return image;
+  // Entzerrt aus einem gespeicherten Originalfoto (quad normiert aufs ganze Foto).
+  renderFromFrame(img, w, h, quad, opts) {
+    return this._renderRegion(img, quad.map((p) => ({ x: p.x * w, y: p.y * h })), w, h, opts);
   }
+
+  // Sucht die Folie in einem einzelnen Standbild (ganzes Bild w×h).
+  // Liefert die Ecken normiert aufs ganze Bild und woher sie stammen.
+  detectFrame(source, w, h) {
+    if (this.locked) return { quad: normQuad(this.toSrc(this.locked, w, h), w, h), how: 'locked' };
+    const mat = this._analysisMat(source, w, h);
+    let det = null;
+    try { det = this._detect(mat); } finally { mat.delete(); }
+    const view = det?.quad || this.lastQuad;
+    if (!view) return { quad: normQuad(this.toSrc(FULL_FRAME, w, h), w, h), how: 'full' };
+    return { quad: normQuad(this.toSrc(view, w, h), w, h), how: det ? 'detected' : 'last' };
+  }
+
+  // Folie in einem gespeicherten Foto suchen – unabhängig vom laufenden Scan (kein Zoom-Ausschnitt,
+  // kein fixierter Rahmen). Liefert die Ecken normiert aufs Foto oder null.
+  detectInImage(img, w, h, zoom = 1) {
+    const aw = ANALYSIS_W, ah = Math.round((h * aw) / w);
+    const c = document.createElement('canvas');
+    c.width = aw;
+    c.height = ah;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, aw, ah);
+    const mat = this.cv.matFromImageData(ctx.getImageData(0, 0, aw, ah));
+    try {
+      const det = this.detector.detect(mat, { rotation: null, focal: DEFAULT_FOCAL * zoom });
+      return det ? det.quad.map((p) => ({ x: p.x, y: p.y })) : null;
+    } finally {
+      mat.delete();
+    }
+  }
+
+  // Manuelle Aufnahme: erst das Foto festhalten, dann darin die Folie suchen und ausschneiden.
+  captureStill(source, w, h) {
+    const frame = document.createElement('canvas');
+    frame.width = w;
+    frame.height = h;
+    frame.getContext('2d').drawImage(source, 0, 0, w, h);
+    const { quad, how } = this.detectFrame(frame, w, h);
+    const image = this.renderFromFrame(frame, w, h, quad);
+    if (this.lastSig) this.change.setReference(this.lastSig);
+    return { image, frame, quad, how, zoom: this.opticalZoom };
+  }
+}
+
+function normQuad(qSrc, w, h) {
+  return qSrc.map((p) => ({ x: p.x / w, y: p.y / h }));
 }

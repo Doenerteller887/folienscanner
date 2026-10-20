@@ -2,7 +2,7 @@
 // App-Dateien: zuerst Netz (immer aktuell), nach 3 s oder offline aus dem Cache.
 // Bibliotheken (lib/, ~10 MB): nur einmal laden, danach immer aus dem Cache.
 
-const SHELL = 'shell-v8';
+const SHELL = 'shell-v9';
 const LIB = 'lib-v1';
 const SHELL_FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',

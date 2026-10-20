@@ -1,6 +1,6 @@
 # Folienscanner
 
-Web-App fürs Handy (Android & iPhone): Du richtest die Kamera auf die Projektion im Hörsaal. Die App erkennt die Folie, zieht sie gerade (wie Adobe Scan) und nimmt **jede neue Folie automatisch** auf. Alle Folien landen fortlaufend in einem **PDF**, das du jederzeit teilen oder herunterladen kannst.
+Web-App fürs Handy (Android & iPhone): Du richtest die Kamera auf die Projektion im Hörsaal. Die App erkennt die Folie, zieht sie gerade (wie Adobe Scan) und speichert sie, wenn du den Auslöser drückst. Im **Automatik-Modus** nimmt sie jede neue Folie auch selbst auf. Alle Folien landen fortlaufend in einem **PDF**, das du jederzeit teilen oder herunterladen kannst.
 
 - Läuft komplett im Browser, ohne Installation aus dem App Store.
 - Funktioniert offline, sobald die App einmal geladen wurde. Das ist praktisch bei schlechtem WLAN.
@@ -47,11 +47,16 @@ Danach startet der Folienscanner wie eine normale App.
 1. Namen der Vorlesung eingeben und **Scan starten** tippen. Die Kamera beim ersten Mal erlauben.
    - Auf Android wechselt die App dabei ins **Vollbild im Querformat**, auch wenn die Bildschirmdrehung gesperrt ist.
    - Das lässt sich in den Einstellungen abschalten.
-2. Das **Handy quer** halten und auf die Projektion richten:
-   - Ein blauer Rahmen zeigt die erkannte Folie.
-   - Orange heißt „neue Folie, kurz ruhig halten“.
-   - Danach blitzt es kurz, das Handy vibriert und unten erscheint „✓ Folie 12 gespeichert“.
-3. Unten in der Leiste:
+2. Das **Handy quer** halten und auf die Projektion richten. Ein blauer Rahmen zeigt die erkannte Folie.
+   - **Manuell (Standard):** Auslöser drücken. Die App hält das Foto fest, sucht erst *darin* die Folie und schneidet sie aus. Unten erscheint „✓ Folie 12 gespeichert“ mit **Bearbeiten**.
+   - **Automatik-Modus** (in den Einstellungen einschalten): Orange heißt „neue Folie, kurz ruhig halten“, danach speichert die App selbst.
+3. **Ausschnitt falsch?** Auf **Bearbeiten** tippen (direkt nach der Aufnahme) oder in der Galerie die Folie öffnen → **Ausschnitt**. Dort siehst du das Originalfoto:
+   - Ecken auf die Folie ziehen (eine Lupe hilft beim genauen Setzen), unten rechts ist die Vorschau.
+   - **Drehen**, falls die Folie falsch herum liegt. Die Kante mit „oben“ wird im PDF die Oberkante.
+   - **Auto** sucht die Folie neu, **Ganzes Bild** nimmt alles.
+   - **Übernehmen** ersetzt die Seite im PDF.
+4. **App aus Versehen geschlossen?** Alle Folien sind sofort gespeichert. Beim nächsten Öffnen erscheint oben „Scan wurde unterbrochen“ mit **Weiter scannen**. Neue Folien werden an dieselbe Vorlesung und dasselbe PDF angehängt. Das klappt auch ohne Internet.
+5. Unten in der Leiste:
 
 **Gesten im Kamerabild:**
 - **Zwei Finger auseinanderziehen = zoomen.** Das ist wichtig, wenn du weiter hinten sitzt: Je größer die Folie im Bild, desto schärfer die Aufnahme. Alternativ den Knopf **1× / 2× / 3× …** über dem Auslöser antippen. Der Zoom wird für das nächste Mal gemerkt.
@@ -66,7 +71,7 @@ Danach startet der Folienscanner wie eine normale App.
 | 🔒 Schloss | Rahmen **fixieren**: Die Erkennung bleibt stabil, auch wenn jemand vor der Leinwand steht. Die Ecken kannst du mit dem Finger verschieben. |
 | PDF | PDF über das Teilen-Menü schicken (Drive, OneNote-App, Mail …) |
 
-4. Nach der Vorlesung: In der Galerie auf **PDF teilen** oder **Herunterladen** tippen.
+6. Nach der Vorlesung: In der Galerie auf **PDF teilen** oder **Herunterladen** tippen.
 
 ### Tipps für gute Ergebnisse
 - **Handy-Ständer oder kleines Stativ** benutzen bzw. das Handy an etwas anlehnen. Dann den Rahmen mit dem 🔒 fixieren. Das ist die zuverlässigste Variante.
@@ -79,7 +84,7 @@ Danach startet der Folienscanner wie eine normale App.
 ### Einstellungen (⚙)
 | Einstellung | Bedeutung |
 |---|---|
-| Automatisch aufnehmen | aus = nur noch der Auslöser nimmt auf |
+| Automatik-Modus | **aus (Standard)** = nur der Auslöser nimmt auf. **an** = neue Folien werden selbst erkannt und gespeichert, sobald sie kurz ruhig stehen. |
 | Empfindlichkeit | höher = reagiert schon auf einzelne neue Zeilen. Niedriger, wenn zu viel aufgenommen wird. |
 | Wartezeit | so lange muss eine neue Folie ruhig stehen, bevor sie gespeichert wird |
 | Aufbau-Animationen zusammenführen | Erscheinen Stichpunkte nacheinander, wird die Seite ergänzt statt neu angelegt. Am Ende steht die vollständige Folie im PDF. |

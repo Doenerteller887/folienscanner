@@ -47,7 +47,9 @@ export function estimateAspect(qPx, W, H, fHint) {
 
 // Einstellung „auto“: Beamer-Bilder haben praktisch immer ein Standardformat → immer auf das
 // nächstliegende einrasten (eine verdeckte Kante verfälscht die Schätzung sonst sichtbar).
+// Deutlich hochkant (z. B. im Editor gedreht): dasselbe Format hochkant.
 export function resolveAspect(setting, estimated) {
+  if (estimated < 0.8) return 1 / resolveAspect(setting, 1 / estimated);
   if (RATIOS[setting]) return RATIOS[setting];
   let best = null, bestErr = Infinity;
   for (const r of Object.values(RATIOS)) {

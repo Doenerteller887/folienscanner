@@ -26,7 +26,9 @@
     <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 2.8h8l4.5 4.5V20a1.2 1.2 0 0 1-1.2 1.2H6A1.2 1.2 0 0 1 4.8 20V4A1.2 1.2 0 0 1 6 2.8z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M14 2.8v4.5h4.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 10.5v6m0 0l-2.5-2.5M12 16.5l2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3.5m0 0L8 7.5m4-4l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11H6a1.5 1.5 0 0 0-1.5 1.5v7A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 18 11h-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
-    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.8A.8.8 0 0 1 9.8 4h4.4a.8.8 0 0 1 .8.8V7m-9 0l1 12.2A1.8 1.8 0 0 0 8.8 21h6.4a1.8 1.8 0 0 0 1.8-1.8L18 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2.5V18h15.5M2.5 6H18v15.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash"viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.8A.8.8 0 0 1 9.8 4h4.4a.8.8 0 0 1 .8.8V7m-9 0l1 12.2A1.8 1.8 0 0 0 8.8 21h6.4a1.8 1.8 0 0 0 1.8-1.8L18 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10.5l5-3v9l-5-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
   </svg>
 
@@ -37,10 +39,23 @@
         <img src="icons/icon-192.png" alt="" class="logo" width="44" height="44">
         <div>
           <h1>Folienscanner</h1>
-          <p class="muted">Neue Folien am Projektor werden automatisch aufgenommen und als PDF gesammelt.</p>
+          <p class="muted">Folien am Projektor erkennen, gerade ziehen und als PDF sammeln.</p>
         </div>
         <button class="icon-btn home-settings" id="btnHomeSettings" aria-label="Einstellungen" title="Einstellungen"><svg class="ic"><use href="#i-gear"/></svg></button>
       </header>
+
+      <div id="resumeCard" class="card resume-card" hidden>
+        <div class="resume-text">
+          <strong>Scan wurde unterbrochen</strong>
+          <span id="resumeName"></span>
+          <span class="muted small" id="resumeMeta"></span>
+        </div>
+        <div class="resume-btns">
+          <button type="button" class="btn primary" id="resumeContinue">Weiter scannen</button>
+          <button type="button" class="btn" id="resumeOpen">Folien &amp; PDF</button>
+          <button type="button" class="btn ghost" id="resumeDismiss">Ausblenden</button>
+        </div>
+      </div>
 
       <form id="startForm" class="card start-card" autocomplete="off">
         <label for="lectureName">Vorlesung</label>
@@ -115,8 +130,26 @@
     <div class="viewer-bar">
       <span id="viewerInfo"></span>
       <span class="spacer"></span>
-      <button class="btn danger" id="viewerDelete"><svg class="ic"><use href="#i-trash"/></svg> Löschen</button>
+      <button class="btn" id="viewerCrop"><svg class="ic"><use href="#i-crop"/></svg> Ausschnitt</button>
+      <button class="btn danger" id="viewerDelete" aria-label="Löschen"><svg class="ic"><use href="#i-trash"/></svg><span class="lbl"> Löschen</span></button>
       <button class="btn" id="viewerClose">Schließen</button>
+    </div>
+  </dialog>
+
+  <!-- Ausschnitt bearbeiten -->
+  <dialog id="cropper" class="viewer cropper">
+    <div class="crop-stage">
+      <canvas id="cropCanvas"></canvas>
+      <figure class="crop-preview"><img id="cropPreview" alt="Vorschau"><figcaption>Vorschau</figcaption></figure>
+    </div>
+    <p class="crop-info muted small" id="cropInfo"></p>
+    <div class="viewer-bar crop-bar">
+      <button class="btn" id="cropRotate" title="Folie um 90° drehen"><svg class="ic"><use href="#i-rotate"/></svg> Drehen</button>
+      <button class="btn" id="cropAuto" title="Folie im Foto neu suchen">Auto</button>
+      <button class="btn" id="cropFull" title="Ganzes Foto verwenden">Ganzes Bild</button>
+      <span class="spacer"></span>
+      <button class="btn" id="cropCancel">Abbrechen</button>
+      <button class="btn primary" id="cropApply">Übernehmen</button>
     </div>
   </dialog>
 
@@ -128,7 +161,8 @@
 
       <fieldset>
         <legend>Automatische Aufnahme</legend>
-        <label class="row switch"><span>Neue Folien automatisch aufnehmen</span><input type="checkbox" name="auto"></label>
+        <label class="row switch"><span>Automatik-Modus<small class="muted">Neue Folien selbstständig aufnehmen</small></span><input type="checkbox" name="auto"></label>
+        <p class="muted small explain"><strong>An:</strong> Die App beobachtet die erkannte Folie. Sobald eine neue Folie gezeigt wird und kurz ruhig steht, macht sie selbst ein Foto, schneidet die Folie aus und hängt sie ans PDF an. Aufbau-Animationen werden zu einer Seite zusammengeführt, wiederholte Folien übersprungen.<br><strong>Aus (Standard):</strong> Du entscheidest selbst und drückst den runden Auslöser. Die Folie wird dann im fertigen Foto gesucht und ausgeschnitten. Jede Folie lässt sich danach über „Bearbeiten“ nachträglich zuschneiden.</p>
         <label class="row col">
           <span>Empfindlichkeit <output name="sensitivityOut"></output></span>
           <input type="range" name="sensitivity" min="1" max="10" step="1">
